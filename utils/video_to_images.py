@@ -19,6 +19,11 @@ def convert_to_images(
 
     capture = cv2.VideoCapture(str(video_path))
 
+    fps = capture.get(cv2.CAP_PROP_FPS)
+    frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    print(f"FPS: {fps}, Total Frames: {frame_count}")
+
     current_frame = 0
     while capture.isOpened():
         ret, image = capture.read()

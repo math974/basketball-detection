@@ -2,11 +2,12 @@ import argparse
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
 
 import numpy as np
 
 from utils import convert_to_images, convert_to_video, draw_trajectory
-
 
 def process_video(
     video_path: Path,

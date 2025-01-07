@@ -1,11 +1,44 @@
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import shutil
 
 import cv2
 import numpy as np
 from numpy import typing as npt
 from scipy.signal import savgol_filter
 from tqdm import tqdm
+
+def copy_unlabeled_images(images_raw_path: Path, labels_path: Path, images_draw_path: Path, trajectory: List[Tuple[int, int]]) -> None:
+    """
+    Copies images from images_raw_path to images_draw_path if they do not have a corresponding label in labels_path.
+
+    Args:
+        images_raw_path: Path to the directory containing raw images.
+        labels_path: Path to the directory containing label files.
+        images_draw_path: Path to the directory where unlabeled images will be copied.
+    """
+    # Ensure output directory exists
+    images_draw_path.mkdir(parents=True, exist_ok=True)
+
+    # Get list of image filenames without extensions
+    image_files = {f.stem for f in images_raw_path.glob("*.jpg")}
+    label_files = {f.stem for f in labels_path.glob("*.txt")}  # Assuming labels are .txt files
+
+    # Find images without corresponding labels
+    unlabeled_images = image_files - label_files
+
+    # Copy unlabeled images to images_draw_path
+    for image_name in unlabeled_images:
+        image = cv2.imread(images_raw_path / f"{image_name}.jpg", 1)
+
+        for point in trajectory:
+            draw_circle(image, point[0], point[1], 5, 5)
+
+        cv2.imwrite(str(images_draw_path / f"{image_name}.jpg"), image)
+
+        #src_image_path = images_raw_path / f"{image_name}.jpg"
+        #dest_image_path = images_draw_path / f"{image_name}.jpg"
+        #shutil.copy2(src_image_path, dest_image_path)
 
 
 def smooth_trajectory(points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
@@ -157,10 +190,13 @@ def process_image(
         draw_circle(image, ball_x, ball_y, obj_width, obj_height)
 
     points = list(filter(lambda pt: pt is not None, points))
-    if len(points) > 30:
-        points = smooth_trajectory(points)
+    #if len(points) > 30:
+    #    points = smooth_trajectory(points)
+#
+    #image = draw_glowing_line(image, points, max_distance)
 
-    image = draw_glowing_line(image, points, max_distance)
+    for point in points:
+        draw_circle(image, point[0], point[1], 5, 5)
     return image, points
 
 
@@ -171,20 +207,32 @@ def draw_trajectory(
     ball_conf: float = 0.3,
     max_distance: int = 30,
 ) -> List[Tuple[int, int]]:
-    label_files = sorted(labels_dir.glob("*.txt"), key=lambda x: int(x.stem))
+    label_files = {f.stem: f for f in labels_dir.glob("*.txt")}
+    image_files = sorted(images_path.glob("*.jpg"), key=lambda x: int(x.stem))
 
     points = []
-    progress_bar = tqdm(label_files)
-    for img_id, label_filename in enumerate(progress_bar):
+    progress_bar = tqdm(image_files)
+    for img_id, image_file in enumerate(progress_bar):
         progress_bar.set_description("Drawing trajectories")
 
-        image, points = process_image(
-            label_filename,
-            points,
-            images_path,
-            ball_conf,
-            max_distance,
-        )
-        cv2.imwrite(str(output_path / f"{img_id:05d}.jpg"), image)
+        label_file = label_files.get(image_file.stem, None)
+
+        if label_file:
+            image, points = process_image(
+                label_file,
+                points,
+                images_path,
+                ball_conf,
+                max_distance,
+            )
+        else:
+            image = cv2.imread(str(image_file), 1)
+            for point in points:
+                draw_circle(image, point[0], point[1], 5, 5)
+        #cv2.imwrite(str(output_path / f"{img_id:05d}.jpg"), image)
+        cv2.imwrite(str(output_path / f"{image_file.stem}.jpg"), image)
+
+    # Copy image that doesn't reconize to image_draw folder
+    #copy_unlabeled_images(images_path, labels_dir, output_path, points)
 
     return points
